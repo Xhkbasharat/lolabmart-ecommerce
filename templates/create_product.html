@@ -1,91 +1,103 @@
-
 {% extends "base.html" %}
 
-{% block title %}Add Product | LolabMart{% endblock %}
+{% block title %}Add a Product | LolabMart{% endblock %}
 
 {% block content %}
-<section class="auth-section">
-    <div class="auth-card product-form-card">
-        <p class="eyebrow">LOLABMART SELLER CENTRE</p>
-        <h1>Add a Product</h1>
-        <p>List a product offered by you in Lolab Valley, Kupwara.</p>
+<section class="page-header">
+    <div>
+        <p class="eyebrow">SELLER CENTRE</p>
+        <h1>Add a New Product</h1>
+        <p>List something from your shop for customers across Lolab Valley.</p>
+    </div>
+    <a href="{{ url_for('seller_dashboard') }}" class="btn btn-secondary">
+        Back to Dashboard
+    </a>
+</section>
 
-        <form method="POST" action="{{ url_for('create_product') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<section class="form-section">
+    <form method="POST" class="form-card">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
+        <div class="form-group">
             <label for="name">Product name</label>
             <input
                 type="text"
                 id="name"
                 name="name"
-                maxlength="150"
-                placeholder="Enter product name"
+                placeholder="e.g. Fresh walnuts"
+                maxlength="120"
                 required
             >
+        </div>
 
+        <div class="form-group">
             <label for="description">Product description</label>
             <textarea
                 id="description"
                 name="description"
-                rows="4"
-                maxlength="2000"
-                placeholder="Describe your product"
+                rows="5"
+                placeholder="Describe your product, its quality and details..."
                 required
             ></textarea>
+        </div>
 
-            <label for="price">Price (₹)</label>
-            <input
-                type="number"
-                id="price"
-                name="price"
-                min="0.01"
-                step="0.01"
-                placeholder="Enter price"
-                required
-            >
+        <div class="form-row">
+            <div class="form-group">
+                <label for="price">Price (₹)</label>
+                <input
+                    type="number"
+                    id="price"
+                    name="price"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="250"
+                    required
+                >
+            </div>
 
-            <label for="category">Category</label>
+            <div class="form-group">
+                <label for="stock">Available quantity</label>
+                <input
+                    type="number"
+                    id="stock"
+                    name="stock"
+                    min="0"
+                    step="1"
+                    placeholder="10"
+                    required
+                >
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="category">Product category</label>
             <select id="category" name="category" required>
-                <option value="">Select a category</option>
-                <option value="Local Produce">Local Produce</option>
-                <option value="Handmade Crafts">Handmade Crafts</option>
-                <option value="Food Products">Food Products</option>
-                <option value="Clothing & Textiles">Clothing & Textiles</option>
-                <option value="Other">Other</option>
+                <option value="">Choose a category</option>
+                {% for category in categories %}
+                    <option value="{{ category }}">{{ category }}</option>
+                {% endfor %}
             </select>
+        </div>
 
-            <label for="stock">Available quantity</label>
-            <input
-                type="number"
-                id="stock"
-                name="stock"
-                min="0"
-                step="1"
-                placeholder="Enter available quantity"
-                required
-            >
-
-            <label for="image_url">Product image URL (optional)</label>
+        <div class="form-group">
+            <label for="image_url">Product image URL</label>
             <input
                 type="url"
                 id="image_url"
                 name="image_url"
                 placeholder="https://example.com/product-image.jpg"
             >
+            <small>Use a direct link to an image that you have permission to use.</small>
+        </div>
 
-            <p class="form-note">
-                Only list products that you genuinely offer from Lolab Valley.
-                Use images you own or have permission to use.
-            </p>
-
-            <button type="submit" class="btn btn-primary btn-full">
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
                 Publish Product
             </button>
-        </form>
-
-        <p class="auth-switch">
-            <a href="{{ url_for('seller_dashboard') }}">Back to Seller Dashboard</a>
-        </p>
-    </div>
+            <a href="{{ url_for('seller_dashboard') }}" class="btn btn-secondary">
+                Cancel
+            </a>
+        </div>
+    </form>
 </section>
 {% endblock %}
