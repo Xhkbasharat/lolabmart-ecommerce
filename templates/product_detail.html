@@ -4,69 +4,125 @@
 {% block title %}{{ product.name }} | LolabMart{% endblock %}
 
 {% block content %}
+
+<section class="page-header">
+    <p class="eyebrow">LOL​AB VALLEY MARKETPLACE</p>
+    <h1>Product Details</h1>
+    <p>Discover products offered by our local sellers.</p>
+</section>
+
 <section class="section product-detail">
+
     <div class="product-detail-image">
+
         {% if product.image_url %}
-        <img src="{{ product.image_url }}" alt="{{ product.name }}">
+
+            <img
+                src="{{ product.image_url }}"
+                alt="{{ product.name }}"
+                loading="lazy">
+
         {% else %}
-        <div class="product-image-placeholder">
-            <span>LOLABMART</span>
-        </div>
+
+            <div class="product-image-placeholder">
+                <span>LOLABMART</span>
+            </div>
+
         {% endif %}
+
     </div>
 
     <div class="product-detail-info">
+
         <p class="eyebrow">FROM LOLAB VALLEY</p>
-        <p class="product-category">{{ product.category }}</p>
+
+        <p class="product-category">
+            {{ product.category }}
+        </p>
 
         <h1>{{ product.name }}</h1>
 
-        <p class="product-origin">📍 {{ product.origin }}</p>
+        <p class="product-origin">
+            📍 {{ product.origin }}
+        </p>
 
         <h2 class="product-price">
             ₹{{ "%.2f"|format(product.price) }}
         </h2>
 
-        <p>{{ product.description or "A product offered by a local Lolab Valley seller." }}</p>
+        <div class="product-description">
+            <h3>About this product</h3>
+            <p>
+                {{ product.description }}
+            </p>
+        </div>
 
-        {% if product.stock > 0 %}
-        <p class="stock-status">In stock: {{ product.stock }}</p>
+        <div class="product-stock">
 
-        {% if current_user.is_authenticated and current_user.role == 'customer' %}
-        <form method="POST" action="{{ url_for('add_to_cart', product_id=product.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if product.stock > 0 %}
 
-            <label for="quantity">Quantity</label>
-            <input
-                type="number"
-                id="quantity"
-                name="quantity"
-                value="1"
-                min="1"
-                max="{{ product.stock }}"
-                required
-            >
+                <p class="stock-status">
+                    <span>●</span>
+                    Available — {{ product.stock }} in stock
+                </p>
 
-            <button type="submit" class="btn btn-primary">
-                Add to Cart
-            </button>
-        </form>
-        {% elif not current_user.is_authenticated %}
-        <p>
-            <a href="{{ url_for('login') }}">Log in</a>
-            as a customer to add this product to your cart.
-        </p>
-        {% else %}
-        <p>Seller and admin accounts cannot place customer orders.</p>
-        {% endif %}
+                {% if current_user.is_authenticated and current_user.role == 'customer' %}
 
-        {% else %}
-        <p class="stock-status">Currently out of stock.</p>
-        {% endif %}
+                    <form
+                        method="POST"
+                        action="{{ url_for('add_to_cart', product_id=product.id) }}">
+
+                        <input
+                            type="hidden"
+                            name="csrf_token"
+                            value="{{ csrf_token() }}">
+
+                        <button
+                            type="submit"
+                            class="btn btn-primary btn-full">
+                            Add to Cart
+                        </button>
+
+                    </form>
+
+                {% elif not current_user.is_authenticated %}
+
+                    <a
+                        href="{{ url_for('login', next=url_for('product_detail', product_id=product.id)) }}"
+                        class="btn btn-primary btn-full">
+                        Log in to Purchase
+                    </a>
+
+                {% else %}
+
+                    <p class="form-note">
+                        Seller and administrator accounts cannot place customer orders.
+                    </p>
+
+                {% endif %}
+
+            {% else %}
+
+                <p class="stock-status">
+                    Currently out of stock.
+                </p>
+
+            {% endif %}
+
+        </div>
+
+        <div class="product-trust-note">
+            <p>✓ Listed by a Lolab Valley seller</p>
+            <p>✓ Local marketplace listing</p>
+            <p>✓ Secure account-based checkout</p>
+        </div>
 
         <a href="{{ url_for('products') }}" class="back-link">
-            ← Back to LolabMart Marketplace
+            ← Back to Marketplace
         </a>
+
     </div>
+
 </section>
+
 {% endblock %}
