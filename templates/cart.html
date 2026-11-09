@@ -4,80 +4,183 @@
 {% block title %}Shopping Cart | LolabMart{% endblock %}
 
 {% block content %}
+
 <section class="page-header">
-    <p class="eyebrow">YOUR LOLAB VALLEY SHOPPING</p>
-    <h1>Shopping Cart</h1>
-    <p>Review your selected products before checkout.</p>
+    <p class="eyebrow">YOUR LOLABMART SHOPPING</p>
+    <h1>Your Shopping Cart</h1>
+    <p>Review products selected from Lolab Valley sellers.</p>
 </section>
 
 <section class="section">
+
     {% if cart_items %}
+
     <div class="cart-layout">
+
         <div class="cart-items">
+
             {% for item in cart_items %}
+
             <article class="cart-item">
+
                 <div class="cart-item-details">
+
                     <h3>{{ item.product.name }}</h3>
+
+                    <p>{{ item.product.category }}</p>
+
                     <p>📍 {{ item.product.origin }}</p>
-                    <p>Price: ₹{{ "%.2f"|format(item.product.price) }}</p>
-                    <p>Subtotal: ₹{{ "%.2f"|format(item.subtotal) }}</p>
+
+                    <p>
+                        Unit price:
+                        ₹{{ "%.2f"|format(item.product.price) }}
+                    </p>
+
+                    <p>
+                        Subtotal:
+                        <strong>
+                            ₹{{ "%.2f"|format(item.subtotal) }}
+                        </strong>
+                    </p>
+
                 </div>
 
-                <form method="POST"
-                      action="{{ url_for('update_cart', product_id=item.product.id) }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="cart-actions">
 
-                    <label for="quantity-{{ item.product.id }}">Quantity</label>
-                    <input
-                        type="number"
-                        id="quantity-{{ item.product.id }}"
-                        name="quantity"
-                        value="{{ item.quantity }}"
-                        min="1"
-                        max="{{ item.product.stock }}"
-                        required
-                    >
+                    <form
+                        method="POST"
+                        action="{{ url_for('update_cart', product_id=item.product.id) }}">
 
-                    <button type="submit" class="btn btn-secondary">
-                        Update
-                    </button>
-                </form>
+                        <input
+                            type="hidden"
+                            name="csrf_token"
+                            value="{{ csrf_token() }}">
 
-                <form method="POST"
-                      action="{{ url_for('remove_from_cart', product_id=item.product.id) }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="remove-link">
-                        Remove
-                    </button>
-                </form>
+                        <label for="quantity-{{ item.product.id }}">
+                            Quantity
+                        </label>
+
+                        <input
+                            type="number"
+                            id="quantity-{{ item.product.id }}"
+                            name="quantity"
+                            value="{{ item.quantity }}"
+                            min="1"
+                            max="{{ item.product.stock }}"
+                            required>
+
+                        <button type="submit"
+                                class="btn btn-secondary">
+                            Update
+                        </button>
+
+                    </form>
+
+                    <form
+                        method="POST"
+                        action="{{ url_for('remove_from_cart', product_id=item.product.id) }}">
+
+                        <input
+                            type="hidden"
+                            name="csrf_token"
+                            value="{{ csrf_token() }}">
+
+                        <button type="submit"
+                                class="remove-link">
+                            Remove Product
+                        </button>
+
+                    </form>
+
+                </div>
+
             </article>
+
             {% endfor %}
+
         </div>
 
         <aside class="cart-summary">
+
             <h2>Order Summary</h2>
-            <p>Items total
-                <strong>₹{{ "%.2f"|format(total) }}</strong>
+
+            <p>
+                <span>Total Items</span>
+                <strong>
+                    {{ cart_items|sum(attribute='quantity') }}
+                </strong>
             </p>
+
+            <p>
+                <span>Subtotal</span>
+                <strong>
+                    ₹{{ "%.2f"|format(total) }}
+                </strong>
+            </p>
+
+            <hr>
+
+            <p class="checkout-total">
+                <span>Order Total</span>
+                <strong>
+                    ₹{{ "%.2f"|format(total) }}
+                </strong>
+            </p>
+
             <p class="cart-note">
                 Delivery charges, if applicable, will be confirmed separately.
             </p>
-            <a href="{{ url_for('checkout') }}" class="btn btn-primary btn-full">
-                Proceed to Checkout
+
+            {% if current_user.is_authenticated and current_user.role == 'customer' %}
+
+                <a href="{{ url_for('checkout') }}"
+                   class="btn btn-primary btn-full">
+                    Proceed to Checkout
+                </a>
+
+            {% elif not current_user.is_authenticated %}
+
+                <a href="{{ url_for('login') }}"
+                   class="btn btn-primary btn-full">
+                    Log in to Checkout
+                </a>
+
+            {% else %}
+
+                <p class="form-note">
+                    Only customer accounts can place orders.
+                </p>
+
+            {% endif %}
+
+            <a href="{{ url_for('products') }}"
+               class="back-link">
+                ← Continue Shopping
             </a>
-            <a href="{{ url_for('products') }}" class="back-link">
-                Continue shopping
-            </a>
+
         </aside>
+
     </div>
+
     {% else %}
+
     <div class="empty-state">
+
         <h2>Your cart is empty</h2>
-        <p>Explore products offered by sellers from Lolab Valley.</p>
-        <a href="{{ url_for('products') }}" class="btn btn-primary">
+
+        <p>
+            Discover products offered by sellers from Lolab Valley.
+        </p>
+
+        <a href="{{ url_for('products') }}"
+           class="btn btn-primary">
             Explore Marketplace
         </a>
+
     </div>
+
     {% endif %}
+
 </section>
+
 {% endblock %}
