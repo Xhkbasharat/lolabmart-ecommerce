@@ -1,7 +1,7 @@
 
 import os
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from flask import (
     Flask, render_template, redirect, url_for,
@@ -13,21 +13,24 @@ from flask_login import (
     logout_user, login_required, current_user
 )
 from flask_wtf.csrf import CSRFProtect
+from sqlalchemy import or_
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
-# -----------------------------------------
-# Application configuration
-# -----------------------------------------
+# =========================================
+# APPLICATION CONFIGURATION
+# =========================================
 
 app = Flask(__name__)
 
 app.config["SECRET_KEY"] = os.environ.get(
-    "SECRET_KEY", "development-only-change-this-secret"
+    "SECRET_KEY",
+    "development-only-change-this-before-deployment"
 )
 
 database_url = os.environ.get(
-    "DATABASE_URL", "sqlite:///lolabmart.db"
+    "DATABASE_URL",
+    "sqlite:///lolabmart.db"
 )
 
 if database_url.startswith("postgres://"):
@@ -44,12 +47,11 @@ csrf = CSRFProtect(app)
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
-login_manager.login_message = "Please log in to continue."
 
 
-# -----------------------------------------
-# Database models
-# -----------------------------------------
+# =========================================
+# DATABASE MODELS
+# =========================================
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -66,17 +68,20 @@ class User(UserMixin, db.Model):
         db.String(255), nullable=False
     )
 
-    is_admin = db.Column(
-        db.Boolean, default=False, nullable=False
+    role = db.Column(
+        db.String(20), default="customer", nullable=False
     )
 
     created_at = db.Column(
         db.DateTime, default=datetime.utcnow
     )
 
+    products = db.relationship(
+        "Product", backref="seller", lazy=True
+    )
+
     orders = db.relationship(
-        "Order", backref="customer",
-        lazy=True, cascade="all, delete-orphan"
+        "Order", backref="customer", lazy=True
     )
 
     def set_password(self, password):
@@ -101,16 +106,24 @@ class Product(db.Model):
         db.Numeric(10, 2), nullable=False
     )
 
-    image_url = db.Column(
-        db.String(500), nullable=True
-    )
-
     category = db.Column(
         db.String(80), nullable=False
     )
 
+    image_url = db.Column(
+        db.String(500), nullable=True
+    )
+
     stock = db.Column(
         db.Integer, default=0, nullable=False
+    )
+
+    origin = db.Column(
+        db.String(100), default="Lolab Valley", nullable=False
+    )
+
+    seller_id = db.Column(
+        db.Integer, db.ForeignKey("user.id"), nullable=False
     )
 
     created_at = db.Column(
@@ -121,21 +134,20 @@ class Product(db.Model):
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
-    user_id = db.Column(
-        db.Integer, db.ForeignKey("user.id"),
-        nullable=False
+    customer_id = db.Column(
+        db.Integer, db.ForeignKey("user.id"), nullable=False
     )
 
     total_amount = db.Column(
         db.Numeric(10, 2), nullable=False
     )
 
-    status = db.Column(
-        db.String(30), default="Pending", nullable=False
-    )
-
     shipping_address = db.Column(
         db.Text, nullable=False
+    )
+
+    status = db.Column(
+        db.String(30), default="Pending", nullable=False
     )
 
     created_at = db.Column(
@@ -143,8 +155,10 @@ class Order(db.Model):
     )
 
     items = db.relationship(
-        "OrderItem", backref="order",
-        lazy=True, cascade="all, delete-orphan"
+        "OrderItem",
+        backref="order",
+        lazy=True,
+        cascade="all, delete-orphan"
     )
 
 
@@ -152,13 +166,11 @@ class OrderItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
     order_id = db.Column(
-        db.Integer, db.ForeignKey("order.id"),
-        nullable=False
+        db.Integer, db.ForeignKey("order.id"), nullable=False
     )
 
     product_id = db.Column(
-        db.Integer, db.ForeignKey("product.id"),
-        nullable=True
+        db.Integer, db.ForeignKey("product.id"), nullable=True
     )
 
     product_name = db.Column(
@@ -174,22 +186,36 @@ class OrderItem(db.Model):
     )
 
 
-# -----------------------------------------
-# Login manager
-# -----------------------------------------
+# =========================================
+# LOGIN MANAGER
+# =========================================
 
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
-# -----------------------------------------
-# Home page
-# -----------------------------------------
+# =========================================
+# TEMPLATE GLOBALS
+# =========================================
+
+@app.context_processor
+def inject_globals():
+    return {
+        "now_year": datetime.now().year
+    }
+
+
+# =========================================
+# HOME PAGE
+# =========================================
 
 @app.route("/")
 def home():
-    products = Product.query.order_by(
+
+    products = Product.query.filter_by(
+        origin="Lolab Valley"
+    ).order_by(
         Product.created_at.desc()
     ).limit(8).all()
 
@@ -199,9 +225,9 @@ def home():
     )
 
 
-# -----------------------------------------
-# Product catalog
-# -----------------------------------------
+# =========================================
+# PRODUCT MARKETPLACE
+# =========================================
 
 @app.route("/products")
 def products():
@@ -209,11 +235,16 @@ def products():
     search = request.args.get("search", "").strip()
     category = request.args.get("category", "").strip()
 
-    query = Product.query
+    query = Product.query.filter_by(
+        origin="Lolab Valley"
+    )
 
     if search:
         query = query.filter(
-            Product.name.ilike(f"%{search}%")
+            or_(
+                Product.name.ilike(f"%{search}%"),
+                Product.description.ilike(f"%{search}%")
+            )
         )
 
     if category:
@@ -226,7 +257,7 @@ def products():
     categories = [
         row[0] for row in db.session.query(
             Product.category
-        ).distinct().all()
+        ).filter_by(origin="Lolab Valley").distinct().all()
     ]
 
     return render_template(
@@ -238,14 +269,17 @@ def products():
     )
 
 
-# -----------------------------------------
-# Product details
-# -----------------------------------------
+# =========================================
+# PRODUCT DETAILS
+# =========================================
 
 @app.route("/product/<int:product_id>")
 def product_detail(product_id):
 
-    product = db.get_or_404(Product, product_id)
+    product = Product.query.filter_by(
+        id=product_id,
+        origin="Lolab Valley"
+    ).first_or_404()
 
     return render_template(
         "product_detail.html",
@@ -253,9 +287,9 @@ def product_detail(product_id):
     )
 
 
-# -----------------------------------------
-# Customer registration
-# -----------------------------------------
+# =========================================
+# REGISTRATION
+# =========================================
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -277,6 +311,10 @@ def register():
             "password", ""
         )
 
+        role = request.form.get(
+            "role", "customer"
+        )
+
         if not username or not email or not password:
             flash("Please complete all fields.", "error")
             return redirect(url_for("register"))
@@ -288,9 +326,15 @@ def register():
             )
             return redirect(url_for("register"))
 
+        if role not in ["customer", "seller"]:
+            flash("Invalid account type.", "error")
+            return redirect(url_for("register"))
+
         existing = User.query.filter(
-            (User.username == username) |
-            (User.email == email)
+            or_(
+                User.username == username,
+                User.email == email
+            )
         ).first()
 
         if existing:
@@ -302,7 +346,8 @@ def register():
 
         user = User(
             username=username,
-            email=email
+            email=email,
+            role=role
         )
 
         user.set_password(password)
@@ -310,16 +355,16 @@ def register():
         db.session.add(user)
         db.session.commit()
 
-        flash("Account created successfully.", "success")
+        flash("Account created successfully!", "success")
 
         return redirect(url_for("login"))
 
     return render_template("register.html")
 
 
-# -----------------------------------------
-# Customer login
-# -----------------------------------------
+# =========================================
+# LOGIN
+# =========================================
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -345,7 +390,10 @@ def login():
 
             login_user(user)
 
-            flash("Welcome to LolabMart!", "success")
+            flash(
+                f"Welcome to LolabMart, {user.username}!",
+                "success"
+            )
 
             next_page = request.args.get("next")
 
@@ -359,9 +407,9 @@ def login():
     return render_template("login.html")
 
 
-# -----------------------------------------
-# Logout
-# -----------------------------------------
+# =========================================
+# LOGOUT
+# =========================================
 
 @app.route("/logout", methods=["POST"])
 @login_required
@@ -375,9 +423,9 @@ def logout():
     return redirect(url_for("home"))
 
 
-# -----------------------------------------
-# Shopping cart
-# -----------------------------------------
+# =========================================
+# SHOPPING CART
+# =========================================
 
 @app.route("/cart")
 def cart():
@@ -388,7 +436,10 @@ def cart():
 
     for product_id, quantity in cart_data.items():
 
-        product = db.session.get(Product, int(product_id))
+        product = Product.query.filter_by(
+            id=int(product_id),
+            origin="Lolab Valley"
+        ).first()
 
         if product is None:
             continue
@@ -414,10 +465,13 @@ def cart():
 @app.route("/cart/add/<int:product_id>", methods=["POST"])
 def add_to_cart(product_id):
 
-    product = db.get_or_404(Product, product_id)
+    product = Product.query.filter_by(
+        id=product_id,
+        origin="Lolab Valley"
+    ).first_or_404()
 
     if product.stock <= 0:
-        flash("This product is out of stock.", "error")
+        flash("This product is currently unavailable.", "error")
         return redirect(url_for("product_detail", product_id=product.id))
 
     cart_data = session.get("cart", {})
@@ -426,12 +480,13 @@ def add_to_cart(product_id):
     current_quantity = int(cart_data.get(key, 0))
 
     if current_quantity >= product.stock:
-        flash("Requested quantity exceeds available stock.", "error")
+        flash("Available stock limit reached.", "error")
     else:
         cart_data[key] = current_quantity + 1
         session["cart"] = cart_data
         session.modified = True
-        flash("Product added to cart.", "success")
+
+        flash("Product added to your cart.", "success")
 
     return redirect(url_for("cart"))
 
@@ -439,7 +494,10 @@ def add_to_cart(product_id):
 @app.route("/cart/update/<int:product_id>", methods=["POST"])
 def update_cart(product_id):
 
-    product = db.get_or_404(Product, product_id)
+    product = Product.query.filter_by(
+        id=product_id,
+        origin="Lolab Valley"
+    ).first_or_404()
 
     quantity = request.form.get("quantity", type=int)
 
@@ -475,9 +533,9 @@ def remove_from_cart(product_id):
     return redirect(url_for("cart"))
 
 
-# -----------------------------------------
-# Checkout
-# -----------------------------------------
+# =========================================
+# CHECKOUT
+# =========================================
 
 @app.route("/checkout", methods=["GET", "POST"])
 @login_required
@@ -494,28 +552,25 @@ def checkout():
 
     for product_id, quantity in cart_data.items():
 
-        product = db.session.get(Product, int(product_id))
-
-        if product is None:
-            continue
+        product = Product.query.filter_by(
+            id=int(product_id),
+            origin="Lolab Valley"
+        ).first()
 
         quantity = int(quantity)
 
-        if quantity < 1 or quantity > product.stock:
-            flash(
-                f"Insufficient stock for {product.name}.",
-                "error"
-            )
+        if (
+            product is None
+            or quantity < 1
+            or quantity > product.stock
+        ):
+            flash("A product is unavailable or has insufficient stock.", "error")
             return redirect(url_for("cart"))
 
         subtotal = product.price * quantity
         total += subtotal
 
         cart_items.append((product, quantity, subtotal))
-
-    if not cart_items:
-        flash("No valid products in your cart.", "error")
-        return redirect(url_for("cart"))
 
     if request.method == "POST":
 
@@ -524,12 +579,13 @@ def checkout():
         ).strip()
 
         if not address:
-            flash("Please enter a shipping address.", "error")
+            flash("Please enter your delivery address.", "error")
             return redirect(url_for("checkout"))
 
         try:
+
             order = Order(
-                user_id=current_user.id,
+                customer_id=current_user.id,
                 total_amount=total,
                 shipping_address=address
             )
@@ -538,19 +594,21 @@ def checkout():
 
             for product, quantity, subtotal in cart_items:
 
-                # Lock the product row where supported by the database.
                 locked_product = Product.query.filter_by(
                     id=product.id
                 ).with_for_update().first()
 
-                if locked_product is None or locked_product.stock < quantity:
+                if (
+                    locked_product is None
+                    or locked_product.stock < quantity
+                ):
                     raise ValueError(
                         f"Insufficient stock for {product.name}."
                     )
 
                 locked_product.stock -= quantity
 
-                item = OrderItem(
+                order_item = OrderItem(
                     order=order,
                     product_id=product.id,
                     product_name=product.name,
@@ -558,17 +616,18 @@ def checkout():
                     unit_price=product.price
                 )
 
-                db.session.add(item)
+                db.session.add(order_item)
 
             db.session.commit()
 
             session.pop("cart", None)
 
-            flash("Your order has been placed!", "success")
+            flash("Your order has been placed successfully!", "success")
 
             return redirect(url_for("my_orders"))
 
         except Exception as error:
+
             db.session.rollback()
             app.logger.exception("Checkout failed")
 
@@ -587,16 +646,16 @@ def checkout():
     )
 
 
-# -----------------------------------------
-# Customer orders
-# -----------------------------------------
+# =========================================
+# CUSTOMER ORDERS
+# =========================================
 
 @app.route("/my-orders")
 @login_required
 def my_orders():
 
     orders = Order.query.filter_by(
-        user_id=current_user.id
+        customer_id=current_user.id
     ).order_by(
         Order.created_at.desc()
     ).all()
@@ -607,40 +666,38 @@ def my_orders():
     )
 
 
-# -----------------------------------------
-# Admin dashboard
-# -----------------------------------------
+# =========================================
+# SELLER DASHBOARD
+# =========================================
 
-@app.route("/admin")
+@app.route("/seller")
 @login_required
-def admin_dashboard():
+def seller_dashboard():
 
-    if not current_user.is_admin:
+    if current_user.role != "seller":
         abort(403)
 
-    products_count = Product.query.count()
-    users_count = User.query.count()
-    orders = Order.query.order_by(
-        Order.created_at.desc()
+    products = Product.query.filter_by(
+        seller_id=current_user.id
+    ).order_by(
+        Product.created_at.desc()
     ).all()
 
     return render_template(
-        "admin/dashboard.html",
-        products_count=products_count,
-        users_count=users_count,
-        orders=orders
+        "seller/dashboard.html",
+        products=products
     )
 
 
-# -----------------------------------------
-# Admin: Add product
-# -----------------------------------------
+# =========================================
+# SELLER: CREATE PRODUCT
+# =========================================
 
-@app.route("/admin/product/create", methods=["GET", "POST"])
+@app.route("/seller/product/create", methods=["GET", "POST"])
 @login_required
 def create_product():
 
-    if not current_user.is_admin:
+    if current_user.role != "seller":
         abort(403)
 
     if request.method == "POST":
@@ -653,19 +710,16 @@ def create_product():
         try:
             price = Decimal(request.form.get("price", "0"))
             stock = int(request.form.get("stock", "0"))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, InvalidOperation):
             flash("Enter a valid price and stock quantity.", "error")
             return redirect(url_for("create_product"))
 
         if (
             not name or not description or not category
+            or not price.is_finite()
             or price <= 0 or stock < 0
         ):
-            flash("Please enter valid product details.", "error")
-            return redirect(url_for("create_product"))
-
-        if not price.is_finite():
-            flash("Enter a valid product price.", "error")
+            flash("Please enter valid product information.", "error")
             return redirect(url_for("create_product"))
 
         product = Product(
@@ -674,66 +728,96 @@ def create_product():
             category=category,
             price=price,
             stock=stock,
-            image_url=image_url or None
+            image_url=image_url or None,
+            origin="Lolab Valley",
+            seller_id=current_user.id
         )
 
         db.session.add(product)
         db.session.commit()
 
-        flash("Product created successfully.", "success")
+        flash("Your product has been listed.", "success")
 
-        return redirect(url_for("admin_dashboard"))
+        return redirect(url_for("seller_dashboard"))
 
-    return render_template("admin/create_product.html")
+    return render_template("seller/create_product.html")
 
 
-# -----------------------------------------
-# Admin: Delete product
-# -----------------------------------------
+# =========================================
+# SELLER: DELETE PRODUCT
+# =========================================
 
 @app.route(
-    "/admin/product/delete/<int:product_id>",
+    "/seller/product/delete/<int:product_id>",
     methods=["POST"]
 )
 @login_required
 def delete_product(product_id):
 
-    if not current_user.is_admin:
+    if current_user.role != "seller":
         abort(403)
 
-    product = db.get_or_404(Product, product_id)
+    product = Product.query.filter_by(
+        id=product_id,
+        seller_id=current_user.id
+    ).first_or_404()
 
-    # Preserve historical order items.
-    product_in_order = OrderItem.query.filter_by(
+    has_orders = OrderItem.query.filter_by(
         product_id=product.id
     ).first()
 
-    if product_in_order:
+    if has_orders:
         flash(
-            "This product is part of an order and cannot be deleted.",
+            "This product belongs to an existing order and cannot be deleted.",
             "error"
         )
-        return redirect(url_for("admin_dashboard"))
+        return redirect(url_for("seller_dashboard"))
 
     db.session.delete(product)
     db.session.commit()
 
-    flash("Product deleted.", "success")
+    flash("Product deleted successfully.", "success")
 
-    return redirect(url_for("admin_dashboard"))
+    return redirect(url_for("seller_dashboard"))
 
 
-# -----------------------------------------
-# Database initialization
-# -----------------------------------------
+# =========================================
+# ADMIN DASHBOARD
+# =========================================
+
+@app.route("/admin")
+@login_required
+def admin_dashboard():
+
+    if current_user.role != "admin":
+        abort(403)
+
+    products_count = Product.query.count()
+    users_count = User.query.count()
+
+    orders = Order.query.order_by(
+        Order.created_at.desc()
+    ).all()
+
+    return render_template(
+        "admin/dashboard.html",
+        products_count=products_count,
+        users_count=users_count,
+        orders=orders
+    )
+
+
+# =========================================
+# DATABASE INITIALIZATION
+# =========================================
 
 with app.app_context():
     db.create_all()
 
 
-# -----------------------------------------
-# Application entry point
-# -----------------------------------------
+# =========================================
+# APPLICATION ENTRY POINT
+# =========================================
 
 if __name__ == "__main__":
 
