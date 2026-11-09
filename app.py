@@ -1,7 +1,9 @@
+Python
+
 import os
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 from flask import (
     Flask, render_template, redirect, url_for,
@@ -78,7 +80,6 @@ ALLOWED_CATEGORIES = [
 # =========================================
 
 class User(UserMixin, db.Model):
-
     id = db.Column(db.Integer, primary_key=True)
 
     username = db.Column(
@@ -119,7 +120,6 @@ class User(UserMixin, db.Model):
 
 
 class Product(db.Model):
-
     id = db.Column(db.Integer, primary_key=True)
 
     name = db.Column(
@@ -164,7 +164,6 @@ class Product(db.Model):
 
 
 class Order(db.Model):
-
     id = db.Column(db.Integer, primary_key=True)
 
     customer_id = db.Column(
@@ -198,7 +197,6 @@ class Order(db.Model):
 
 
 class OrderItem(db.Model):
-
     id = db.Column(db.Integer, primary_key=True)
 
     order_id = db.Column(
@@ -232,7 +230,6 @@ class OrderItem(db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-
     try:
         return db.session.get(User, int(user_id))
     except (ValueError, TypeError):
@@ -245,7 +242,6 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_globals():
-
     cart = session.get("cart", {})
 
     if not isinstance(cart, dict):
@@ -268,20 +264,20 @@ def inject_globals():
 # =========================================
 
 def valid_image_url(value):
-
     if not value:
         return True
 
-    parsed = urlparse(value)
-
-    return (
-        parsed.scheme in ("http", "https")
-        and bool(parsed.netloc)
-    )
+    try:
+        parsed = urlparse(value)
+        return (
+            parsed.scheme in ("http", "https")
+            and bool(parsed.netloc)
+        )
+    except ValueError:
+        return False
 
 
 def get_cart_items():
-
     cart_data = session.get("cart", {})
 
     if not isinstance(cart_data, dict):
@@ -291,7 +287,6 @@ def get_cart_items():
     total = Decimal("0.00")
 
     for product_id, quantity in cart_data.items():
-
         try:
             product_id = int(product_id)
             quantity = int(quantity)
@@ -321,13 +316,39 @@ def get_cart_items():
     return cart_items, total
 
 
+def safe_next_url(target):
+    if not target:
+        return None
+
+    ref_url = urlparse(request.host_url)
+    test_url = urlparse(urljoin(request.host_url, target))
+
+    if (
+        test_url.scheme in ("http", "https")
+        and ref_url.netloc == test_url.netloc
+        and target.startswith("/")
+        and not target.startswith("//")
+        and "\\" not in target
+    ):
+        return target
+
+    return None
+
+
+def require_role(role):
+    if not current_user.is_authenticated:
+        abort(401)
+
+    if current_user.role != role:
+        abort(403)
+
+
 # =========================================
 # HOME PAGE
 # =========================================
 
 @app.route("/")
 def home():
-
     products = Product.query.filter_by(
         origin=MARKETPLACE_ORIGIN
     ).order_by(
@@ -346,14 +367,8 @@ def home():
 
 @app.route("/products")
 def products():
-
-    search = request.args.get(
-        "search", ""
-    ).strip()
-
-    category = request.args.get(
-        "category", ""
-    ).strip()
+    search = request.args.get("search", "").strip()
+    category = request.args.get("category", "").strip()
 
     query = Product.query.filter_by(
         origin=MARKETPLACE_ORIGIN
@@ -399,7 +414,6 @@ def products():
 
 @app.route("/product/<int:product_id>")
 def product_detail(product_id):
-
     product = Product.query.filter_by(
         id=product_id,
         origin=MARKETPLACE_ORIGIN
@@ -417,12 +431,10 @@ def product_detail(product_id):
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-
     if current_user.is_authenticated:
         return redirect(url_for("home"))
 
     if request.method == "POST":
-
         username = request.form.get(
             "username", ""
         ).strip()
@@ -431,13 +443,8 @@ def register():
             "email", ""
         ).strip().lower()
 
-        password = request.form.get(
-            "password", ""
-        )
-
-        role = request.form.get(
-            "role", "customer"
-        )
+        password = request.form.get("password", "")
+        role = request.form.get("role", "customer")
 
         if not username or not email or not password:
             flash("Please complete all fields.", "error")
@@ -461,7 +468,11 @@ def register():
             flash("Invalid account type.", "error")
             return redirect(url_for("register"))
 
-        if "@" not in email or len(email) > 120:
+        if (
+            "@" not in email
+            or len(email) > 120
+            or " " in email
+        ):
             flash("Please enter a valid email address.", "error")
             return redirect(url_for("register"))
 
@@ -506,26 +517,21 @@ def register():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-
     if current_user.is_authenticated:
         return redirect(url_for("home"))
 
     if request.method == "POST":
-
         email = request.form.get(
             "email", ""
         ).strip().lower()
 
-        password = request.form.get(
-            "password", ""
-        )
+        password = request.form.get("password", "")
 
         user = User.query.filter_by(
             email=email
         ).first()
 
         if user and user.check_password(password):
-
             login_user(user)
 
             flash(
@@ -533,14 +539,18 @@ def login():
                 "success"
             )
 
-            next_page = request.args.get("next", "")
+            next_page = safe_next_url(
+                request.args.get("next", "")
+            )
 
-            if (
-                next_page.startswith("/")
-                and not next_page.startswith("//")
-                and "\\" not in next_page
-            ):
+            if next_page:
                 return redirect(next_page)
+
+            if user.role == "seller":
+                return redirect(url_for("seller_dashboard"))
+
+            if user.role == "admin":
+                return redirect(url_for("admin_dashboard"))
 
             return redirect(url_for("home"))
 
@@ -556,7 +566,6 @@ def login():
 @app.route("/logout", methods=["POST"])
 @login_required
 def logout():
-
     logout_user()
     session.pop("cart", None)
 
@@ -571,7 +580,6 @@ def logout():
 
 @app.route("/cart")
 def cart():
-
     cart_items, total = get_cart_items()
 
     return render_template(
@@ -583,7 +591,6 @@ def cart():
 
 @app.route("/cart/add/<int:product_id>", methods=["POST"])
 def add_to_cart(product_id):
-
     product = Product.query.filter_by(
         id=product_id,
         origin=MARKETPLACE_ORIGIN
@@ -610,8 +617,7 @@ def add_to_cart(product_id):
     except (ValueError, TypeError):
         current_quantity = 0
 
-    if current_quantity < 0:
-        current_quantity = 0
+    current_quantity = max(current_quantity, 0)
 
     if current_quantity >= product.stock:
         flash("Available stock limit reached.", "error")
@@ -627,7 +633,6 @@ def add_to_cart(product_id):
 
 @app.route("/cart/update/<int:product_id>", methods=["POST"])
 def update_cart(product_id):
-
     product = Product.query.filter_by(
         id=product_id,
         origin=MARKETPLACE_ORIGIN
@@ -662,7 +667,6 @@ def update_cart(product_id):
 
 @app.route("/cart/remove/<int:product_id>", methods=["POST"])
 def remove_from_cart(product_id):
-
     cart_data = session.get("cart", {})
 
     if not isinstance(cart_data, dict):
@@ -685,10 +689,7 @@ def remove_from_cart(product_id):
 @app.route("/checkout", methods=["GET", "POST"])
 @login_required
 def checkout():
-
-    # Only customer accounts may place orders.
-    if current_user.role != "customer":
-        abort(403)
+    require_role("customer")
 
     cart_items, total = get_cart_items()
 
@@ -697,7 +698,6 @@ def checkout():
         return redirect(url_for("products"))
 
     if request.method == "POST":
-
         address = request.form.get(
             "shipping_address", ""
         ).strip()
@@ -710,42 +710,51 @@ def checkout():
             return redirect(url_for("checkout"))
 
         try:
+            order_items_to_create = []
+            verified_total = Decimal("0.00")
+
+            for item in cart_items:
+                product = Product.query.filter_by(
+                    id=item["product"].id,
+                    origin=MARKETPLACE_ORIGIN
+                ).with_for_update().first()
+
+                quantity = item["quantity"]
+
+                if product is None or product.stock < quantity:
+                    raise ValueError(
+                        f"Insufficient stock for "
+                        f"{item['product'].name}."
+                    )
+
+                product.stock -= quantity
+
+                verified_total += product.price * quantity
+
+                order_items_to_create.append({
+                    "product": product,
+                    "quantity": quantity
+                })
 
             order = Order(
                 customer_id=current_user.id,
-                total_amount=total,
+                total_amount=verified_total,
                 shipping_address=address,
                 status="Pending"
             )
 
             db.session.add(order)
+            db.session.flush()
 
-            for item in cart_items:
-
-                product_id = item["product"].id
-                quantity = item["quantity"]
-
-                locked_product = Product.query.filter_by(
-                    id=product_id,
-                    origin=MARKETPLACE_ORIGIN
-                ).with_for_update().first()
-
-                if (
-                    locked_product is None
-                    or locked_product.stock < quantity
-                ):
-                    raise ValueError(
-                        f"Insufficient stock for {item['product'].name}."
-                    )
-
-                locked_product.stock -= quantity
+            for item in order_items_to_create:
+                product = item["product"]
 
                 order_item = OrderItem(
-                    order=order,
-                    product_id=locked_product.id,
-                    product_name=locked_product.name,
-                    quantity=quantity,
-                    unit_price=locked_product.price
+                    order_id=order.id,
+                    product_id=product.id,
+                    product_name=product.name,
+                    quantity=item["quantity"],
+                    unit_price=product.price
                 )
 
                 db.session.add(order_item)
@@ -762,14 +771,11 @@ def checkout():
             return redirect(url_for("my_orders"))
 
         except ValueError as error:
-
             db.session.rollback()
             flash(str(error), "error")
-
             return redirect(url_for("cart"))
 
         except Exception:
-
             db.session.rollback()
             app.logger.exception("Checkout failed")
 
@@ -794,9 +800,7 @@ def checkout():
 @app.route("/my-orders")
 @login_required
 def my_orders():
-
-    if current_user.role != "customer":
-        abort(403)
+    require_role("customer")
 
     orders = Order.query.filter_by(
         customer_id=current_user.id
@@ -817,9 +821,7 @@ def my_orders():
 @app.route("/seller")
 @login_required
 def seller_dashboard():
-
-    if current_user.role != "seller":
-        abort(403)
+    require_role("seller")
 
     products = Product.query.filter_by(
         seller_id=current_user.id,
@@ -841,20 +843,30 @@ def seller_dashboard():
 @app.route("/seller/product/create", methods=["GET", "POST"])
 @login_required
 def create_product():
-
-    if current_user.role != "seller":
-        abort(403)
+    require_role("seller")
 
     if request.method == "POST":
-
         name = request.form.get("name", "").strip()
-        description = request.form.get("description", "").strip()
-        category = request.form.get("category", "").strip()
-        image_url = request.form.get("image_url", "").strip()
+        description = request.form.get(
+            "description", ""
+        ).strip()
+
+        category = request.form.get(
+            "category", ""
+        ).strip()
+
+        image_url = request.form.get(
+            "image_url", ""
+        ).strip()
 
         try:
-            price = Decimal(request.form.get("price", "0"))
-            stock = int(request.form.get("stock", "0"))
+            price = Decimal(
+                request.form.get("price", "0")
+            )
+
+            stock = int(
+                request.form.get("stock", "0")
+            )
 
         except (ValueError, TypeError, InvalidOperation):
             flash(
@@ -880,9 +892,125 @@ def create_product():
             flash(
                 "Please enter valid product information.",
                 "error"
-            )
+    )
             return redirect(url_for("create_product"))
 
         product = Product(
             name=name,
-         
+            description=description,
+            category=category,
+            price=price,
+            stock=stock,
+            image_url=image_url or None,
+            origin=MARKETPLACE_ORIGIN,
+            seller_id=current_user.id
+        )
+
+        db.session.add(product)
+        db.session.commit()
+
+        flash(
+            "Your Lolab Valley product has been listed.",
+            "success"
+        )
+
+        return redirect(url_for("seller_dashboard"))
+
+    return render_template(
+        "create_product.html",
+        categories=ALLOWED_CATEGORIES
+    )
+    # =========================================
+# SELLER: DELETE PRODUCT
+# =========================================
+
+@app.route(
+    "/seller/product/delete/<int:product_id>",
+    methods=["POST"]
+)
+@login_required
+def delete_product(product_id):
+    require_role("seller")
+
+    product = Product.query.filter_by(
+        id=product_id,
+        seller_id=current_user.id,
+        origin=MARKETPLACE_ORIGIN
+    ).first_or_404()
+
+    db.session.delete(product)
+    db.session.commit()
+
+    flash("Product deleted successfully.", "success")
+
+    return redirect(url_for("seller_dashboard"))
+
+# =========================================
+# ADMIN DASHBOARD
+# =========================================
+
+@app.route("/admin")
+@login_required
+def admin_dashboard():
+    require_role("admin")
+
+    total_users = User.query.count()
+
+    total_products = Product.query.filter_by(
+        origin=MARKETPLACE_ORIGIN
+    ).count()
+
+    total_orders = Order.query.count()
+
+    recent_orders = Order.query.order_by(
+        Order.created_at.desc()
+    ).limit(10).all()
+
+    users = User.query.order_by(
+        User.created_at.desc()
+    ).limit(20).all()
+
+    products = Product.query.order_by(
+        Product.created_at.desc()
+    ).limit(20).all()
+    return render_template(
+        "admin_dashboard.html",
+        total_users=total_users,
+        total_products=total_products,
+        total_orders=total_orders,
+        recent_orders=recent_orders,
+        users=users,
+        products=products
+    )
+    
+# =========================================
+# ERROR HANDLERS
+# =========================================
+
+@app.errorhandler(403)
+def forbidden(error):
+    return render_template(
+        "403.html"
+    ), 403
+
+
+@app.errorhandler(404)
+def not_found(error):
+    return render_template(
+        "404.html"
+    ), 404
+
+
+# =========================================
+# DATABASE INITIALIZATION
+# =========================================
+
+with app.app_context():
+    db.create_all()
+    
+
+
+
+
+
+    
