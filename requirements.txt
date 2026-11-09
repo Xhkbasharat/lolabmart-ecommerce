@@ -1,0 +1,11 @@
+
+Flask
+Flask-SQLAlchemy
+Flask-Login
+Flask-WTF
+email-validator
+psycopg2-binary
+python-dotenv
+Werkzeug
+gunicorn
+pytest
