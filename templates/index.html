@@ -1,0 +1,127 @@
+
+{% extends "base.html" %}
+
+{% block title %}LolabMart | Your Valley. Your Marketplace.{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="hero-content">
+        <p class="eyebrow">MADE IN LOLAB VALLEY</p>
+        <h1>Your Valley.<br>Your Marketplace.</h1>
+        <p>
+            Discover products, local produce, handmade crafts and
+            small businesses from Lolab Valley, Kupwara.
+        </p>
+        <a href="{{ url_for('products') }}" class="btn btn-primary">
+            Explore the Marketplace
+        </a>
+    </div>
+
+    <div class="hero-photo-placeholder">
+        <span>Lolab Valley</span>
+        <p>Your Lolab Valley photograph will appear here.</p>
+    </div>
+</section>
+
+<section class="section">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">SHOP LOCALLY</p>
+            <h2>Explore Our Marketplace</h2>
+            <p>Discover what local sellers from Lolab Valley have to offer.</p>
+        </div>
+        <a href="{{ url_for('products') }}">View all products →</a>
+    </div>
+
+    <div class="category-grid">
+        <a href="{{ url_for('products', category='Local Produce') }}"
+           class="category-card">
+            <span>🌱</span>
+            <h3>Local Produce</h3>
+            <p>Products from local growers.</p>
+        </a>
+
+        <a href="{{ url_for('products', category='Handmade Crafts') }}"
+           class="category-card">
+            <span>🧶</span>
+            <h3>Handmade Crafts</h3>
+            <p>Work made by local artisans.</p>
+        </a>
+
+        <a href="{{ url_for('products', category='Food Products') }}"
+           class="category-card">
+            <span>🍯</span>
+            <h3>Food Products</h3>
+            <p>Locally prepared food products.</p>
+        </a>
+
+        <a href="{{ url_for('products', category='Clothing & Textiles') }}"
+           class="category-card">
+            <span>🧵</span>
+            <h3>Clothing & Textiles</h3>
+            <p>Local clothing and textile products.</p>
+        </a>
+    </div>
+</section>
+
+<section class="section products-section">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">FROM LOCAL SELLERS</p>
+            <h2>Featured Products</h2>
+            <p>Every product displayed here is listed for Lolab Valley.</p>
+        </div>
+        <a href="{{ url_for('products') }}">Browse marketplace →</a>
+    </div>
+
+    {% if products %}
+    <div class="product-grid">
+        {% for product in products %}
+        <article class="product-card">
+            <a href="{{ url_for('product_detail', product_id=product.id) }}">
+                {% if product.image_url %}
+                <img src="{{ product.image_url }}"
+                     alt="{{ product.name }}"
+                     class="product-image">
+                {% else %}
+                <div class="product-image-placeholder">
+                    <span>LOLABMART</span>
+                </div>
+                {% endif %}
+            </a>
+
+            <div class="product-info">
+                <p class="product-category">{{ product.category }}</p>
+                <h3>
+                    <a href="{{ url_for('product_detail', product_id=product.id) }}">
+                        {{ product.name }}
+                    </a>
+                </h3>
+                <p class="product-origin">📍 {{ product.origin }}</p>
+                <strong>₹{{ "%.2f"|format(product.price) }}</strong>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>The marketplace is getting ready.</h3>
+        <p>Local sellers can register and add the first Lolab Valley products.</p>
+        <a href="{{ url_for('register') }}" class="btn btn-primary">
+            Join as a Seller
+        </a>
+    </div>
+    {% endif %}
+</section>
+
+<section class="seller-banner">
+    <div>
+        <p class="eyebrow">GROW WITH LOLABMART</p>
+        <h2>Are you a seller from Lolab Valley?</h2>
+        <p>Bring your local products to the LolabMart community.</p>
+    </div>
+    <a href="{{ url_for('register') }}" class="btn btn-light">
+        Become a Seller
+    </a>
+</section>
+{% endblock %}
