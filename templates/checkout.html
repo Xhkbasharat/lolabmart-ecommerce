@@ -4,72 +4,140 @@
 {% block title %}Checkout | LolabMart{% endblock %}
 
 {% block content %}
+
 <section class="page-header">
-    <p class="eyebrow">ALMOST THERE</p>
-    <h1>Checkout</h1>
-    <p>Complete your LolabMart order.</p>
+    <p class="eyebrow">LOLABMART CHECKOUT</p>
+    <h1>Complete Your Order</h1>
+    <p>One step closer to receiving products from Lolab Valley.</p>
 </section>
 
 <section class="section">
+
     {% if cart_items %}
+
     <div class="checkout-layout">
+
         <div class="checkout-form-card">
-            <h2>Delivery Details</h2>
 
-            <form method="POST" action="{{ url_for('checkout') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <p class="eyebrow">DELIVERY INFORMATION</p>
+            <h2>Where should we deliver?</h2>
 
-                <label for="shipping_address">Full delivery address</label>
+            <p class="form-note">
+                Enter your complete delivery address so the seller can
+                coordinate delivery with you.
+            </p>
+
+            <form method="POST"
+                  action="{{ url_for('checkout') }}">
+
+                <input
+                    type="hidden"
+                    name="csrf_token"
+                    value="{{ csrf_token() }}">
+
+                <label for="shipping_address">
+                    Complete delivery address
+                </label>
+
                 <textarea
                     id="shipping_address"
                     name="shipping_address"
-                    rows="5"
+                    rows="6"
                     maxlength="1000"
-                    placeholder="Enter your village, locality, post office and complete delivery address"
-                    required
-                ></textarea>
+                    placeholder="Enter your village, locality, post office, district and contact details..."
+                    required></textarea>
 
                 <p class="form-note">
-                    Please provide an accurate delivery address.
+                    Please double-check your address before placing the order.
                 </p>
 
-                <button type="submit" class="btn btn-primary btn-full">
-                    Place Order
+                <button type="submit"
+                        class="btn btn-primary btn-full">
+                    Place My Order
                 </button>
+
             </form>
+
         </div>
 
         <aside class="cart-summary">
+
+            <p class="eyebrow">YOUR PURCHASE</p>
             <h2>Order Summary</h2>
 
             {% for item in cart_items %}
+
             <div class="checkout-summary-item">
-                <span>{{ item.product.name }} × {{ item.quantity }}</span>
-                <strong>₹{{ "%.2f"|format(item.subtotal) }}</strong>
+
+                <span>
+                    {{ item.product.name }}
+                    × {{ item.quantity }}
+                </span>
+
+                <strong>
+                    ₹{{ "%.2f"|format(item.subtotal) }}
+                </strong>
+
             </div>
+
             {% endfor %}
 
             <hr>
 
-            <p class="checkout-total">
-                Total
-                <strong>₹{{ "%.2f"|format(total) }}</strong>
+            <p>
+                <span>Subtotal</span>
+                <strong>
+                    ₹{{ "%.2f"|format(total) }}
+                </strong>
             </p>
 
-            <p class="cart-note">
-                Payment arrangements and delivery details will be confirmed
-                separately. No online payment is collected on this page.
+            <p class="checkout-total">
+                <span>Order Total</span>
+                <strong>
+                    ₹{{ "%.2f"|format(total) }}
+                </strong>
             </p>
+
+            <div class="payment-information">
+
+                <h3>Payment Information</h3>
+
+                <p class="cart-note">
+                    Online payment is not currently available.
+                    Payment and delivery arrangements will be confirmed
+                    separately.
+                </p>
+
+            </div>
+
+            <a href="{{ url_for('cart') }}"
+               class="back-link">
+                ← Return to Shopping Cart
+            </a>
+
         </aside>
+
     </div>
+
     {% else %}
+
     <div class="empty-state">
+
         <h2>Your cart is empty</h2>
-        <p>Add a product before proceeding to checkout.</p>
-        <a href="{{ url_for('products') }}" class="btn btn-primary">
-            Browse Products
+
+        <p>
+            Add products from Lolab Valley before checking out.
+        </p>
+
+        <a href="{{ url_for('products') }}"
+           class="btn btn-primary">
+            Explore Marketplace
         </a>
+
     </div>
+
     {% endif %}
+
 </section>
+
 {% endblock %}
