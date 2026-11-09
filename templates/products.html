@@ -1,0 +1,80 @@
+
+{% extends "base.html" %}
+
+{% block title %}Marketplace | LolabMart{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <p class="eyebrow">LOLAB VALLEY, KUPWARA</p>
+    <h1>Lolab Valley Marketplace</h1>
+    <p>Explore products offered by sellers from our valley.</p>
+</section>
+
+<section class="section">
+    <form method="GET" action="{{ url_for('products') }}" class="filter-form">
+        <input
+            type="search"
+            name="search"
+            placeholder="Search local products..."
+            value="{{ search or '' }}"
+        >
+
+        <select name="category">
+            <option value="">All categories</option>
+            <option value="Local Produce" {% if category == 'Local Produce' %}selected{% endif %}>Local Produce</option>
+            <option value="Handmade Crafts" {% if category == 'Handmade Crafts' %}selected{% endif %}>Handmade Crafts</option>
+            <option value="Food Products" {% if category == 'Food Products' %}selected{% endif %}>Food Products</option>
+            <option value="Clothing & Textiles" {% if category == 'Clothing & Textiles' %}selected{% endif %}>Clothing & Textiles</option>
+            <option value="Other" {% if category == 'Other' %}selected{% endif %}>Other</option>
+        </select>
+
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+
+    {% if products %}
+    <div class="product-grid">
+        {% for product in products %}
+        <article class="product-card">
+            <a href="{{ url_for('product_detail', product_id=product.id) }}">
+                {% if product.image_url %}
+                <img
+                    src="{{ product.image_url }}"
+                    alt="{{ product.name }}"
+                    class="product-image"
+                >
+                {% else %}
+                <div class="product-image-placeholder">
+                    <span>LOLABMART</span>
+                </div>
+                {% endif %}
+            </a>
+
+            <div class="product-info">
+                <p class="product-category">{{ product.category }}</p>
+                <h3>
+                    <a href="{{ url_for('product_detail', product_id=product.id) }}">
+                        {{ product.name }}
+                    </a>
+                </h3>
+                <p class="product-origin">📍 {{ product.origin }}</p>
+                <strong>₹{{ "%.2f"|format(product.price) }}</strong>
+                {% if product.stock > 0 %}
+                    <p class="stock-status">In stock: {{ product.stock }}</p>
+                {% else %}
+                    <p class="stock-status">Out of stock</p>
+                {% endif %}
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h2>No products found</h2>
+        <p>Try another search, or check back when Lolab Valley sellers add products.</p>
+        <a href="{{ url_for('products') }}" class="btn btn-primary">
+            Clear filters
+        </a>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
